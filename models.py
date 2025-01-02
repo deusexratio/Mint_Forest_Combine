@@ -76,8 +76,8 @@ class Profile(BaseModel):
 
             profiles_stats.append(result)
             async with lock:
-                write_results_for_profile('./results.xlsx', self, result)
-                move_profile_to_done('./profiles.xlsx', self)
+                write_results_for_profile('./user_files/results.xlsx', self, result)
+                move_profile_to_done('./user_files/profiles.xlsx', self)
 
                 # todo: add check "Seed Phrase ..."
                 #  если вообще где угодно что-то застряло то попробовать клик по слову close

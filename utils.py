@@ -3,43 +3,12 @@ import sys
 from datetime import datetime
 from decimal import Decimal
 
-import pandas as pd
-from numpy import nan
 from loguru import logger
 from openpyxl import load_workbook
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill, Side, Border
+from openpyxl.styles import Side, Border
 
 from models import Profile, Result
 from settings import max_row_profiles
-
-
-def get_accounts_from_excel_old(excel_path: str, skip_first_line: bool = True) -> list:
-    profiles = []
-    df = pd.read_excel(excel_path)
-    rows = df.values.tolist()
-    for i, row in enumerate(rows):
-        # Pandas lib skips first line automatically
-        # if skip_first_line:
-        #     skip_first_line = False
-        #     continue
-        # print(f'i {i} row {row}')
-        if row[0] is nan:
-            row[0] = i + 1
-
-        if row[1] is nan:
-            continue
-
-        # id_ = "".join(char for char in row[0] if not char.isspace())
-        id_ = row[0]
-        ads_id = "".join(char for char in str(row[1]) if not char.isspace())
-        # name = "".join(char for char in row[2] if not char.isspace())
-        name = str(row[2])
-        password = "".join(char for char in str(row[3]) if not char.isspace())
-
-        profiles.append(Profile(id=id_, name=name, ads_id=ads_id, password=password))
-
-    return profiles
 
 
 def get_accounts_from_excel(excel_path: str) -> list:
@@ -166,8 +135,6 @@ def randfloat(from_: int | float | str, to_: int | float | str,
     step = Decimal(str(step))
     rand_int = Decimal(str(random.randint(0, int((to_ - from_) / step))))
     return float(rand_int * step + from_)
-
-# get_accounts_from_excel('./profiles.xlsx')
 
 def print_stats(stats: list[Result]):
     for result in stats:
