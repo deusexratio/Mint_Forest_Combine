@@ -10,7 +10,7 @@ from openpyxl.styles import Side, Border, Font, Alignment, PatternFill
 from openpyxl.workbook import Workbook
 
 from models import Profile, Result
-from settings import max_row_profiles, PROFILES_PATH, RESULTS_PATH
+from settings import max_row_profiles, PROFILES_PATH, RESULTS_PATH, USER_FILES_FOLDER
 
 
 def get_accounts_from_excel(excel_path: str) -> list:
@@ -160,6 +160,8 @@ def touch(path: str | tuple | list, file: bool = False) -> bool:
 
 
 def create_files():
+    touch(USER_FILES_FOLDER)
+
     # Стиль заголовков
     header_font = Font(bold=True)
     header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -198,7 +200,7 @@ def create_files():
 
 
     if not os.path.exists(RESULTS_PATH):
-        workbook = load_workbook(RESULTS_PATH)
+        workbook = Workbook()
         sheet = workbook.active
 
         headers = ['id', 'ads_id', 'name', 'Password', 'Ref code', 'bubble_amount', 'tasks_done', 'total_win_amount', 'Time']

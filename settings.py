@@ -5,5 +5,7 @@ relay_bridge_inbound_chain = 'Optimism'
 bridge_min = 0.0004
 bridge_max = 0.0009
 
-PROFILES_PATH = './user_files/profiles.xlsx'
-RESULTS_PATH = './user_files/results.xlsx'
+
+USER_FILES_FOLDER = './user_files'
+PROFILES_PATH = USER_FILES_FOLDER + '/profiles.xlsx'
+RESULTS_PATH = USER_FILES_FOLDER + '/results.xlsx'
