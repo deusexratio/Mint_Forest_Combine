@@ -4,7 +4,7 @@ import traceback
 from loguru import logger
 import asyncio
 
-from settings import concurrent_tasks
+from settings import concurrent_tasks, PROFILES_PATH
 from utils import get_accounts_from_excel, print_stats
 
 
@@ -23,7 +23,6 @@ async def task(profile, profiles_stats, new_, no_green_id, semaphore, lock):
 
 async def main():
     profiles_stats = []
-    profiles_excel_path = './user_files/profiles.xlsx'
     semaphore = asyncio.Semaphore(concurrent_tasks)
     lock = asyncio.Lock()
 
@@ -42,8 +41,9 @@ async def main():
             new_acc = False
             no_green_id = False
 
-    profiles = get_accounts_from_excel(profiles_excel_path)
+    profiles = get_accounts_from_excel(PROFILES_PATH)
     tasks = [asyncio.create_task(task(profile, profiles_stats, new_acc, no_green_id, semaphore, lock)) for profile in profiles]
+    logger.info(f"Стартую {len(tasks)} тасков")
     await asyncio.wait(tasks)
 
     print_stats(profiles_stats)

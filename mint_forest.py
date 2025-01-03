@@ -5,11 +5,10 @@ from os import close
 
 from playwright.async_api import async_playwright, expect, BrowserContext, Page
 from loguru import logger
-# from playwright.sync_api import sync_playwright, expect, BrowserContext
 from playwright._impl._errors import TimeoutError, Error, TargetClosedError
 import asyncio
 
-import settings
+from settings import RETRY_ATTEMPTS, bridge_min, bridge_max, relay_bridge_inbound_chain
 from utils import Profile, randfloat
 
 
@@ -24,7 +23,7 @@ class Mint:
 
 
     async def unlock_rabby(self):
-        for i in range(settings.RETRY_ATTEMPTS):
+        for i in range(RETRY_ATTEMPTS):
             try:
                 logger.debug(f'Name: {self.profile.name} | Starting to unlock Rabby')
                 # 'chrome-extension://acmacodkjbdgmoleebolmdjonilkdbch/index.html#/unlock'
@@ -65,33 +64,39 @@ class Mint:
                 continue
 
 
-    async def connect_wallet(self, connect_login_button):
+    async def connect_wallet_to_mint(self, connect_login_button):
         logger.debug(f'Name: {self.profile.name} | Starting connecting wallet to Mint')
-        mint_page = await self.get_page('Mint', self.mint_url)
+        mint_page = await self.get_page_by_url(self.mint_url)
         try:
             await expect(connect_login_button).to_have_text('Connect')
         except:
             logger.debug(f'Name: {self.profile.name} | Already connected wallet to Mint')
             return
 
-        await mint_page.get_by_text('Connect').last.click(timeout=1000)
+        # await mint_page.get_by_text('Connect').last.click(timeout=1000)
+        await connect_login_button.click(timeout=1000)
         await mint_page.get_by_text('Rabby Wallet').click(timeout=1000)
-        rabby_page = await self.switch_to_extension_page(self.rabby_notification_url)
+        rabby_page = await self.switch_to_extension_page(self.rabby_notification_url,timeout_=10000)
         try:
-            await rabby_page.get_by_text('Ignore all').click(timeout=1000)
+            await rabby_page.get_by_text('Ignore all').click(timeout=5000)
         except:
             pass
-        await rabby_page.get_by_text('Connect').click(timeout=1000)
-        await rabby_page.get_by_text('Confirm').click(timeout=1000)
+        connect_button = rabby_page.locator('//*[@id="root"]/div/div/div/div/div[3]/div/div/button[1]')
+        await expect(connect_button).to_be_enabled()
+        await connect_button.click(timeout=5000)
+        # await rabby_page.get_by_text('Confirm').click(timeout=5000)
         logger.debug(f'Name: {self.profile.name} | Connected wallet to Mint')
 
 
-    async def login_wallet(self, connect_login_button):
+    async def login_wallet_to_mint(self, connect_login_button):
         logger.debug(f'Name: {self.profile.name} | Starting logging in wallet to Mint')
         await connect_login_button.click(timeout=1000)
-        rabby_page = await self.switch_to_extension_page(self.rabby_notification_url)
-        await rabby_page.get_by_text('Sign and Create').click(timeout=1000)
+        rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
+
+        await asyncio.sleep(3)
+        await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
         await rabby_page.get_by_text('Confirm').click(timeout=1000)
+        await asyncio.sleep(1)
         logger.debug(f'Name: {self.profile.name} | Logged in wallet to Mint')
 
 
@@ -133,13 +138,31 @@ class Mint:
             return None
 
 
-    async def get_page(self, page_title: str, page_url):
+    async def get_page_by_title(self, page_title: str, page_url):
         titles = [await p.title() for p in self.context.pages]
         page_index = 0
 
         for title in titles:
             # print(title)
             if page_title in title:
+                page = self.context.pages[page_index]
+                # page.reload()
+                return page
+            page_index += 1
+
+        page = await self.context.new_page()
+        await page.goto(page_url)
+        await page.set_viewport_size({"width": 1500, "height": 1000})
+        return page
+
+
+    async def get_page_by_url(self, page_url: str):
+        urls = [p.url for p in self.context.pages]
+        page_index = 0
+
+        for url in urls:
+            # print(title)
+            if page_url in url:
                 page = self.context.pages[page_index]
                 # page.reload()
                 return page
@@ -179,32 +202,32 @@ class Mint:
         #         continue
 
         # Connect wallet
-        for i in range(settings.RETRY_ATTEMPTS):
+        for i in range(RETRY_ATTEMPTS):
             try:
                 await expect(connect_login_button).to_have_text('Connect')
                 # expect(mint_page.get_by_text('Login')).not_to_be_visible()
             except:
                 break
             try:
-                await self.connect_wallet(connect_login_button)
+                await self.connect_wallet_to_mint(connect_login_button)
             except:
                 continue
 
         await asyncio.sleep(1)
         # Login wallet
-        for i in range(settings.RETRY_ATTEMPTS):
+        for i in range(RETRY_ATTEMPTS):
             try:
                 await expect(connect_login_button).to_have_text('Login')
             except:
                 break
             try:
-                await self.login_wallet(connect_login_button)
+                await self.login_wallet_to_mint(connect_login_button)
             except:
                 continue
 
 
     async def all_preparations(self):
-        mint_page = await self.get_page('Mint', self.mint_url)
+        mint_page = await self.get_page_by_url(self.mint_url)
         await mint_page.bring_to_front()
         while True:
             try:
@@ -233,7 +256,7 @@ class Mint:
     async def daily_bubble(self):
         mint_page = await self.all_preparations()
 
-        for i in range(settings.RETRY_ATTEMPTS):
+        for i in range(RETRY_ATTEMPTS):
             try:
                 logger.debug(f'Name: {self.profile.name} | {i} attempt popping bubble')
                 # bubble = mint_page.locator('span.font-DINCond.font-medium.relative')
@@ -241,7 +264,14 @@ class Mint:
                 # Вынес проверку страницы кошелька из-за лабуды со сменой сети
                 rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
                 if rabby_page:
-                    await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
+                    try:
+                        await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
+                    except:
+                        if await rabby_page.get_by_text('Gas is not enough').is_visible(timeout=1000):
+                            await rabby_page.close()
+                            logger.info(f'Name: {self.profile.name} | Нет эфира в минте на газ')
+                            return 0
+
                     await rabby_page.get_by_text('Confirm').click(timeout=1000)
 
                 # Проверка выполнен ли уже пузырик
@@ -291,6 +321,11 @@ class Mint:
                 # rabby_page.get_by_text('Sign and Create').click(timeout=1000)
                 # rabby_page.get_by_text('Confirm').click(timeout=1000)
 
+            except TargetClosedError as e:
+                logger.error(f"{str(e)[:200]}")
+                mint_page = await self.all_preparations()
+                continue
+
             except Exception as e:
                 traceback.print_exc()
                 logger.error(f"{str(e)[:200]}")
@@ -315,7 +350,7 @@ class Mint:
 
                 if task_button and await task_button.is_visible():
                     logger.debug(f"Name: {self.profile.name} | Кликаю по первому доступному task")
-                    await task_button.click(timeout=1000)
+                    await task_button.click(timeout=10000)
                     # Если быстро кликать, то сайт выдает ошибку Frequent operations
                     await asyncio.sleep(randfloat(3, 7, 0.001))
 
@@ -329,11 +364,11 @@ class Mint:
                         logger.success(f"Name: {self.profile.name} | Task выполнен")
                         tasks_done += 1
                 else:
-                    logger.info("Все задания выполнены.")
+                    logger.info(f"Name: {self.profile.name} | Все задания выполнены.")
                     return tasks_done  # Если кнопки "Go" больше нет — выходим из цикла
 
             except Exception as e:
-                print(e)
+                logger.error(f"Name: {self.profile.name} | {e}")
                 continue
 
 
@@ -440,11 +475,12 @@ class Mint:
 
     async def spend_mint_energy(self, amount_percent: float | None = None):
         mint_page = await self.all_preparations()
+        await mint_page.set_viewport_size({"width": 1500, "height": 1500})
 
         if not amount_percent:
             amount_percent = randfloat(0.5, 0.75, 0.01)
 
-        for i in range(settings.RETRY_ATTEMPTS):
+        for i in range(RETRY_ATTEMPTS):
             try:
                 mint_energy_count_locator = mint_page.locator('//*[@id="inject-root"]/div[2]/span[1]')
                 mint_energy = (await mint_energy_count_locator.text_content()).strip(' ME').replace(",", "")
@@ -463,7 +499,7 @@ class Mint:
                 break
 
             except Exception as e:
-                logger.error(f"Name: {self.profile.name} | {e[:700]}")
+                logger.error(f"Name: {self.profile.name} | error")
                 if 'element is not stable' in e:
                     # отключаем анимацию
                     await mint_page.evaluate("""
@@ -483,9 +519,8 @@ class Mint:
                     break
 
 
-
     async def register_account(self, ref_code: str) -> bool:
-        mint_page = await self.get_page('Mint', self.mint_url)
+        mint_page = await self.get_page_by_url(self.mint_url)
         await mint_page.bring_to_front()
         while True:
             try:
@@ -496,36 +531,72 @@ class Mint:
         await asyncio.sleep(1)
 
         await self.check_connection_ext_to_mint(mint_page)
+
+        try:
+            bubble = mint_page.locator(
+                '//div[@class="absolute flex items-center justify-center cursor-pointer max-h-[68px] max-w-[68px]'
+                ' z-[9999] select-none scale-100 translate-y-[-3px] bubble-wave text-[#BD751F]"]'
+            )
+            await expect(bubble).to_be_visible(timeout=10000)
+            logger.debug(f"Name: {self.profile.name} | Акк уже был регнут! Main page")
+            return True
+        except:
+            pass
+
+
         try:
             check_button = mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[2]/div[2]/button')
             await check_button.click(timeout=10000)
+            await asyncio.sleep(5)
             # Проверяем галочку после нажатия чека
-            await expect(mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[2]/div[2]/svg')).to_be_visible(timeout=10000)
+            # await expect(mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[2]/div[2]/svg')).to_be_visible(timeout=10000)
         except Exception as e:
             logger.debug(f"Name: {self.profile.name} | {e}. Акк уже был регнут?")
-            return True
+            pass
+            # return True
+
+        rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=5000)
+        if rabby_page:
+            await rabby_page.close()
 
         try:
             connect_twitter_button = mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[3]/div[2]/button')
             await connect_twitter_button.click(timeout=10000)
+        except Exception as e:
+            logger.info(f"Name: {self.profile.name} | {e}. Твиттер уже подвязан?")
+            # return False
+            # Пока тут поставлю слип, чтобы можно было ручками зайти на подвисших акках
+            # await asyncio.sleep(1000)
+            pass
+
+        try:
             auth_button = mint_page.get_by_text('Authorize app')
             await auth_button.click(timeout=10000)
         except Exception as e:
-            logger.error(f"Name: {self.profile.name} | {e}. Наверное не залогинен твиттер")
-            # return False
-            # Пока тут поставлю слип, чтобы можно было ручками зайти на подвисших акках
-            await asyncio.sleep(1000)
-
+            logger.error(f"Name: {self.profile.name} | {e}. Твиттер не залогинен!")
 
         # Проверяем галочку коннекта твиттера
-        await expect(mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[3]/div[2]/svg')).to_be_visible(timeout=10000)
+        # await expect(mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[3]/div[2]/svg')).to_be_visible(timeout=10000)
+        await asyncio.sleep(5)
+        try:
+            bind_button = mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[4]/div[2]/button')
+            await bind_button.click(timeout=10000)
+        except:
+            logger.error(f"Name: {self.profile.name} | Бинд уже нажат")
+            pass
 
-        bind_button = mint_page.locator('//*[@id="forest-root"]/div/div[1]/div/div/div[4]/div[2]/button')
-        await bind_button.click(timeout=10000)
+        try:
+            ref_code_input = mint_page.locator('body > div.ReactModalPortal > div > div > div > '
+                                               'div.w-full.mt-14.lg\:mt-28.flex.justify-center > div > div > input')
+            await ref_code_input.fill(ref_code)
+            await asyncio.sleep(3)
+            await mint_page.get_by_text('Join Now').click(timeout=10000)
 
-        ref_code_input = mint_page.locator('/html/body/div[4]/div/div/div/div[2]/div/div/input')
-        await ref_code_input.fill(ref_code)
-        await mint_page.get_by_text('Join Now').click(timeout=10000)
+            # отключить кош и обновить страницу
+
+        except Exception as e:
+            logger.error(f"Name: {self.profile.name} | {e} Реф код уже забит")
+            pass
 
         # In case for popups on forest page
         try:
@@ -533,11 +604,25 @@ class Mint:
         except:
             await mint_page.get_by_text('Close').click(timeout=1000)
 
-
         logger.success(f"Name: {self.profile.name} | Регнул акк!")
 
+        try:
+            if await mint_page.get_by_text('Eligibility Verification').is_visible(timeout=10000):
+                wallet_button = mint_page.locator('//*[@id="app-root"]/header/div/div[3]/div/div')
+                await wallet_button.click(timeout=10000)
+                await mint_page.get_by_text('Log Out').click(timeout=5000)
+                await mint_page.reload()
+        except Exception as e:
+            bubble = mint_page.locator(
+                '//div[@class="absolute flex items-center justify-center cursor-pointer max-h-[68px] max-w-[68px]'
+                ' z-[9999] select-none scale-100 translate-y-[-3px] bubble-wave text-[#BD751F]"]'
+            )
+            if await bubble.is_visible(timeout=5000):
+                return True
+            logger.error(f"Name: {self.profile.name} | Что-то пошло не так после регистрации {e}")
+
         # Регаем дискорд
-        await self.reg_discord(mint_page)
+        # await self.reg_discord(mint_page)
 
         return True
 
@@ -547,17 +632,29 @@ class Mint:
         go_discord_button = mint_page.locator('//*[@id="forest-root"]/div[3]/div[3]/div[1]/div/div[2]/div[2]/div/div[2]/div/div[2]/div[3]')
         await go_discord_button.click(timeout=10000)
 
+        try:
+            auth_button = mint_page.locator('//*[@id="app-mount"]/div[2]/div[1]/div[1]/div/div/div/div/div[2]/div/div/button')
+            await auth_button.click(timeout=7000)
+            await expect(go_discord_button).to_be_visible(timeout=20000)
+            logger.debug(f"Name: {self.profile.name} | Авторизовал дискорд")
+        except:
+            logger.debug(f"Name: {self.profile.name} | Дискорд уже был авторизован")
 
-        auth_button = mint_page.locator('//*[@id="app-mount"]/div[2]/div[1]/div[1]/div/div/div/div/div[2]/div/div/button')
-        await auth_button.click(timeout=15000)
-        await expect(go_discord_button).to_be_visible(timeout=20000)
-        logger.debug(f"Name: {self.profile.name} | Авторизовал дискорд")
+        await asyncio.sleep(5)
 
         await go_discord_button.click(timeout=10000)
 
-        discord_page = await self.get_page('Discord', 'https://discord.com/invite/mint-blockchain')
+        discord_page = await self.get_page_by_url('https://discord.com/invite/mint-blockchain')
         accept_invite_button = discord_page.locator('//*[@id="app-mount"]/div[2]/div[1]/div[1]/div/div[2]/div/div/div/section/div[2]/button/div')
         await accept_invite_button.click(timeout=10000)
+
+        # Если вылезла капча решаем руками и потом ничего не делаем
+        try:
+            await expect(discord_page.locator('//*[@id="app-mount"]/div[2]/div[1]/div[5]/div[2]/div/div/div/div[1]/div[2]')).to_be_visible(timeout=10000)
+            logger.critical(f"Name: {self.profile.name} | Нужно решить капчу!")
+            await asyncio.sleep(180)
+        except:
+            pass
 
         # Этот блок для тех у кого на компе стоит приложение дискорда
         try:
@@ -600,6 +697,60 @@ class Mint:
 
         return True
 
+
+    async def relay(self):
+        while True:
+            try:
+                relay_page =  await self.get_page_by_url('https://relay.link/bridge/mint')
+
+                connect_button = relay_page.locator('//*[@id="__next"]/div[2]/div/main/div/div/div/div/button')
+                try:
+                    await expect(connect_button).not_to_have_text('Connect', timeout=10000)
+                except:
+                    try:
+                        await connect_button.click(timeout=3000)
+                        await expect(connect_button).not_to_have_text('Connect', timeout=10000)
+                    except:
+                        # await connect_button.click(timeout=3000)
+                        rabby_button = relay_page.get_by_text('Rabby')
+                        await rabby_button.click(timeout=1000)
+                        rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
+                        if rabby_page:
+                            try:
+                                await rabby_page.get_by_text('Ignore all').click(timeout=1000)
+                            except:
+                                pass
+                            await rabby_page.get_by_role("button", name="Connect").click(timeout=1000)
+                            # await rabby_page.get_by_text('Confirm').click(timeout=1000)
+                        logger.debug(f'Name: {self.profile.name} | Connected wallet to Relay')
+
+                select_inbound_chain_button = relay_page.locator('//*[@id="from-token-section"]/button')
+                await select_inbound_chain_button.click(timeout=3000)
+                inbound_chain = relay_page.get_by_text(relay_bridge_inbound_chain)
+                await inbound_chain.scroll_into_view_if_needed(timeout=5000)
+                await inbound_chain.click(timeout=5000)
+
+                input_amount = relay_page.locator('//*[@id="from-token-section"]/div[2]/div[1]/input')
+                amount_to_bridge = randfloat(bridge_min, bridge_max, 0.0001)
+                await input_amount.fill(str(amount_to_bridge))
+                await relay_page.get_by_text('Trade').click(timeout=10000)
+                await relay_page.get_by_text('Confirm').click(timeout=10000)
+
+                rabby_page = await self.switch_to_extension_page(self.rabby_notification_url)
+                await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
+                await rabby_page.get_by_text('Confirm').click(timeout=5000)
+
+                success = relay_page.get_by_text('Successfully swapped')
+                await expect(success).to_be_visible(timeout=30000)
+                logger.success(f"Name: {self.profile.name} | Забриджил {amount_to_bridge} ETH from {relay_bridge_inbound_chain}")
+
+                await relay_page.close()
+
+                return amount_to_bridge
+
+            except Exception as e:
+                logger.critical(f"Name: {self.profile.name} | Что-то пошло не так в бридже, жду помощи руками {e}")
+                await asyncio.sleep(100)
 
 '''
 <span class="text-md text-[#00A637] font-normal mb-30">Congratulations on winning 100 ME</span>

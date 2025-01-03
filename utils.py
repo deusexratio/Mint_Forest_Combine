@@ -1,3 +1,4 @@
+import os
 import random
 import sys
 from datetime import datetime
@@ -5,10 +6,11 @@ from decimal import Decimal
 
 from loguru import logger
 from openpyxl import load_workbook
-from openpyxl.styles import Side, Border
+from openpyxl.styles import Side, Border, Font, Alignment, PatternFill
+from openpyxl.workbook import Workbook
 
 from models import Profile, Result
-from settings import max_row_profiles
+from settings import max_row_profiles, PROFILES_PATH, RESULTS_PATH
 
 
 def get_accounts_from_excel(excel_path: str) -> list:
@@ -37,24 +39,9 @@ def write_results_for_profile(excel_path: str, profile: Profile, result: Result)
     workbook = load_workbook(excel_path)
     sheet = workbook.active
 
-    # Стиль заголовков
-    # header_font = Font(bold=True)
-    # header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    # header_fill = PatternFill("solid", fgColor="FFFFFF")  # Желтый фон fgColor="FFFF00"
-    # headers = ['id', 'ads_id', 'name', 'Password', 'Ref code', 'bubble_amount', 'tasks_done', 'total_win_amount', 'Time']
-
     # Создаем стиль для границ (все стороны)
     thin = Side(border_style="thin", color="000000")  # Тонкая черная линия
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-    # # Записываем заголовки
-    # for col_num, header in enumerate(headers, start=1):
-    #     cell = sheet.cell(row=1, column=col_num, value=header)
-    #     cell.font = header_font
-    #     cell.alignment = header_alignment
-    #     cell.fill = header_fill
-    #     cell.border = border
-
 
     rows = sheet.iter_rows(min_row=2, max_row=max_row_profiles, min_col=1, max_col=9, values_only=True)
     for row_num, row in enumerate(rows, start=2):
@@ -140,6 +127,95 @@ def print_stats(stats: list[Result]):
     for result in stats:
         print(result)
 
+
+def join_path(path: str | tuple | list) -> str:
+    if isinstance(path, str):
+        return path
+    return str(os.path.join(*path))
+
+
+def touch(path: str | tuple | list, file: bool = False) -> bool:
+    """
+    Create an object (file or directory) if it doesn't exist.
+
+    :param Union[str, tuple, list] path: path to the object
+    :param bool file: is it a file?
+    :return bool: True if the object was created
+    """
+    path = join_path(path)
+    if file:
+        if not os.path.exists(path):
+            with open(path, 'w') as f:
+                f.write('')
+
+            return True
+
+        return False
+
+    if not os.path.isdir(path):
+        os.mkdir(path)
+        return True
+
+    return False
+
+
+def create_files():
+    # Стиль заголовков
+    header_font = Font(bold=True)
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    header_fill = PatternFill("solid", fgColor="FFFF00")  # Желтый фон fgColor="FFFF00"
+    header_fill_done = PatternFill("solid", fgColor="FF00FF")  # Желтый фон fgColor="FFFF00"
+
+    # Создаем стиль для границ (все стороны)
+    thin = Side(border_style="thin", color="000000")  # Тонкая черная линия
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+
+    if not os.path.exists(PROFILES_PATH):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "not_done"
+
+        headers = ['id', 'ads_id', 'name', 'Password', 'Ref code']
+
+        # Записываем заголовки
+        for col_num, header in enumerate(headers, start=1):
+            cell = sheet.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.alignment = header_alignment
+            cell.fill = header_fill
+            cell.border = border
+
+
+        sheet_done = workbook.copy_worksheet(sheet)
+        sheet_done.title = "done"
+        for col_num, header in enumerate(headers, start=1):
+            cell = sheet.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill_done
+
+        workbook.save(PROFILES_PATH)
+        workbook.close()
+
+
+    if not os.path.exists(RESULTS_PATH):
+        workbook = load_workbook(RESULTS_PATH)
+        sheet = workbook.active
+
+        headers = ['id', 'ads_id', 'name', 'Password', 'Ref code', 'bubble_amount', 'tasks_done', 'total_win_amount', 'Time']
+
+        # Записываем заголовки
+        for col_num, header in enumerate(headers, start=1):
+            cell = sheet.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.alignment = header_alignment
+            cell.fill = header_fill
+            cell.border = border
+
+        workbook.save(RESULTS_PATH)
+        workbook.close()
+
+
+create_files()
 
 logger.remove()
 logger.add(

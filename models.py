@@ -7,6 +7,8 @@ from playwright.async_api import async_playwright
 from pydantic import BaseModel
 from loguru import logger
 
+from settings import RESULTS_PATH,PROFILES_PATH
+
 
 class Profile(BaseModel):
     id: int
@@ -57,27 +59,34 @@ class Profile(BaseModel):
 
                 await mint.unlock_rabby()
 
+                reg = False
+
                 if new and no_green_id:
                     await mint.register_account(self.ref_code)
-                    return
+                    bubble_amount = await mint.daily_bubble()
+                    if bubble_amount == 0:
+                        amount_to_bridge = await mint.relay()
+                        bubble_amount = await mint.daily_bubble()
+                    reg = True
 
-                if no_green_id:
+                elif no_green_id:
                     # Пока не делаю твиттер таски на новорегах потому что там селектора другие если нет грин айди
                     bubble_amount = await mint.daily_bubble()
                     await mint.spend_mint_energy()
 
-                bubble_amount = await mint.daily_bubble()
-                tasks_done = await mint.mint_socials()
-                total_win_amount = await mint.lucky_roulette()
-                await mint.spend_mint_energy()
+                else:
+                    bubble_amount = await mint.daily_bubble()
+                    tasks_done = await mint.mint_socials()
+                    total_win_amount = await mint.lucky_roulette()
+                    await mint.spend_mint_energy()
 
             result = Result(name=str(self.name), bubble_amount=int(bubble_amount),
-                            tasks_done=int(tasks_done), total_win_amount=int(total_win_amount))
+                            tasks_done=int(tasks_done), total_win_amount=int(total_win_amount), reg=reg)
 
             profiles_stats.append(result)
             async with lock:
-                write_results_for_profile('./user_files/results.xlsx', self, result)
-                move_profile_to_done('./user_files/profiles.xlsx', self)
+                write_results_for_profile(RESULTS_PATH, self, result)
+                move_profile_to_done(PROFILES_PATH, self)
 
                 # todo: add check "Seed Phrase ..."
                 #  если вообще где угодно что-то застряло то попробовать клик по слову close
@@ -91,7 +100,8 @@ class Result(BaseModel):
     bubble_amount: int
     tasks_done: int
     total_win_amount: int
+    reg: bool
 
     def __repr__(self):
         return (f"Name: {self.name} | bubble_amount: {self.bubble_amount}, "
-                f"tasks_done: {self.tasks_done}, total_win_amount: {self.total_win_amount}")
+                f"tasks_done: {self.tasks_done}, total_win_amount: {self.total_win_amount}, reg: {self.reg}")
