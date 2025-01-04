@@ -67,11 +67,16 @@ class Profile(BaseModel):
                     if bubble_amount == 0:
                         amount_to_bridge = await mint.relay()
                         bubble_amount = await mint.daily_bubble()
+                    tasks_done = 0
+                    total_win_amount = 0
                     reg = True
 
                 elif no_green_id:
                     # Пока не делаю твиттер таски на новорегах потому что там селектора другие если нет грин айди
                     bubble_amount = await mint.daily_bubble()
+                    # tasks_done = await mint.mint_socials(no_green_id)
+                    tasks_done = 0
+                    total_win_amount = await mint.lucky_roulette(no_green_id)
                     await mint.spend_mint_energy()
 
                 else:

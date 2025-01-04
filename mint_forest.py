@@ -95,6 +95,7 @@ class Mint:
 
         await asyncio.sleep(3)
         await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
+        await asyncio.sleep(.3)
         await rabby_page.get_by_text('Confirm').click(timeout=1000)
         await asyncio.sleep(1)
         logger.debug(f'Name: {self.profile.name} | Logged in wallet to Mint')
@@ -259,7 +260,11 @@ class Mint:
         for i in range(RETRY_ATTEMPTS):
             try:
                 logger.debug(f'Name: {self.profile.name} | {i} attempt popping bubble')
-                # bubble = mint_page.locator('span.font-DINCond.font-medium.relative')
+
+                # Перепроверяем логин, иногда почему то подвисает
+                connect_login_button = mint_page.get_by_role(role='button', name='Login')
+                if await connect_login_button.is_visible(timeout=1000):
+                    await self.login_wallet_to_mint(connect_login_button)
 
                 # Вынес проверку страницы кошелька из-за лабуды со сменой сети
                 rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
@@ -332,10 +337,13 @@ class Mint:
                 continue
 
 
-    async def mint_socials(self):
+    async def mint_socials(self, no_green_id: bool = False):
         mint_page = await self.all_preparations()
 
-        parent_tasks_locator = mint_page.locator('//*[@id="forest-root"]/div[3]/div[4]/div[1]/div/div[2]/div[2]/div/div[2]/div')
+        if no_green_id:
+            parent_tasks_locator = mint_page.locator('//*[@id="forest-root"]/div[3]/div[3]/div[1]/div/div[2]/div[2]/div/div[2]/div')
+        else:
+            parent_tasks_locator = mint_page.locator('//*[@id="forest-root"]/div[3]/div[4]/div[1]/div/div[2]/div[2]/div/div[2]/div')
 
         # try:
         #     expect(parent_tasks_locator).to_have_class("w-full flex-1 flex flex-col gap-8 max-h-[450px] lg:max-h-[unset] overflow-y-auto scroll-bar px-8")
@@ -354,7 +362,7 @@ class Mint:
                     # Если быстро кликать, то сайт выдает ошибку Frequent operations
                     await asyncio.sleep(randfloat(3, 7, 0.001))
 
-                    twitter_task_page = self.close_new_page('x.com')
+                    twitter_task_page = await self.close_new_page('x.com')
 
                     # Повторяем для кнопки "Verify"
                     verify_button = parent_tasks_locator.locator('xpath=*').get_by_text('Verify').last
@@ -372,10 +380,14 @@ class Mint:
                 continue
 
 
-    async def lucky_roulette(self):
+    async def lucky_roulette(self, no_green_id: bool = False):
         mint_page = await self.all_preparations()
 
-        lucky_button = mint_page.locator('//*[@id="forest-root"]/div[3]/div[2]/img[3]')
+        if no_green_id:
+            lucky_button = mint_page.locator('//*[@id="forest-root"]/div[3]/div[1]/img[3]')
+        else:
+            lucky_button = mint_page.locator( '//*[@id="forest-root"]/div[3]/div[2]/img[3]')
+
         await lucky_button.click(timeout=3000)
 
         _300_button = mint_page.locator('//*[@id="spin-root"]/div[3]/div/div[1]/span')
@@ -490,6 +502,8 @@ class Mint:
                 await mint_energy_count_locator.click(timeout=3000)
                 me_input = mint_page.locator('//*[@id="react-tiny-popover-container"]/div/div/div/div/div[4]/input')
                 await me_input.fill(str(amount_to_spend))
+
+                await asyncio.sleep(2)
                 inject_button = mint_page.get_by_text('Inject ME')
                 await expect(inject_button).to_be_enabled(timeout=3000)
                 await inject_button.click(timeout=3000)

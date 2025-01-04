@@ -43,28 +43,20 @@ def write_results_for_profile(excel_path: str, profile: Profile, result: Result)
     thin = Side(border_style="thin", color="000000")  # Тонкая черная линия
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    rows = sheet.iter_rows(min_row=2, max_row=max_row_profiles, min_col=1, max_col=9, values_only=True)
-    for row_num, row in enumerate(rows, start=2):
-        id_ = sheet.cell(row=row_num, column=1, value=profile.id)
-        id_.border = border
-        ads_id = sheet.cell(row=row_num, column=2, value=profile.ads_id)
-        ads_id.border = border
-        name = sheet.cell(row=row_num, column=3, value=profile.name)
-        name.border = border
-        password = sheet.cell(row=row_num, column=4, value=profile.password)
-        password.border = border
-        ref_code = sheet.cell(row=row_num, column=5, value=profile.ref_code)
-        ref_code.border = border
+    # Определяем номер строки для записи (следующая свободная строка)
+    row_num = sheet.max_row + 1
 
+    # Записываем данные в новую строку
+    sheet.cell(row=row_num, column=1, value=profile.id).border = border
+    sheet.cell(row=row_num, column=2, value=profile.ads_id).border = border
+    sheet.cell(row=row_num, column=3, value=profile.name).border = border
+    sheet.cell(row=row_num, column=4, value=profile.password).border = border
+    sheet.cell(row=row_num, column=5, value=profile.ref_code).border = border
 
-        bubble_amount = sheet.cell(row=row_num, column=6, value=result.bubble_amount)
-        bubble_amount.border = border
-        tasks_done = sheet.cell(row=row_num, column=7, value=result.tasks_done)
-        tasks_done.border = border
-        total_win_amount = sheet.cell(row=row_num, column=8, value=result.total_win_amount)
-        total_win_amount.border = border
-        time = sheet.cell(row=row_num, column=9, value=datetime.now())
-        time.border = border
+    sheet.cell(row=row_num, column=6, value=result.bubble_amount).border = border
+    sheet.cell(row=row_num, column=7, value=result.tasks_done).border = border
+    sheet.cell(row=row_num, column=8, value=result.total_win_amount).border = border
+    sheet.cell(row=row_num, column=9, value=datetime.now()).border = border
 
     workbook.save(excel_path)
     workbook.close()
@@ -72,24 +64,26 @@ def write_results_for_profile(excel_path: str, profile: Profile, result: Result)
 
 def move_profile_to_done(excel_path: str, profile: Profile):
     workbook = load_workbook(excel_path)
-    sheet = workbook.get_sheet_by_name('not_done')
-    rows = sheet.iter_rows(min_row=2, max_row=max_row_profiles, min_col=1, max_col=9, values_only=True)
-    for i, row in enumerate(rows, start=1):
-        if row[1] == profile.ads_id:
-            sheet.delete_rows(i)
+    sheet_not_done = workbook['not_done']
+    sheet_done = workbook['done']
 
+    # Удаляем профиль из 'not_done' в обратном порядке
+    rows = list(sheet_not_done.iter_rows(min_row=2, max_row=sheet_not_done.max_row, min_col=1, max_col=9, values_only=True))
+    for i in range(len(rows), 0, -1):
+        if rows[i-1][1] == profile.ads_id:  # row[1] - ads_id
+            sheet_not_done.delete_rows(i + 1)  # +1, так как iter_rows начинается с 2-й строки
 
-    sheet = workbook.get_sheet_by_name('done')
-    rows = sheet.iter_rows(min_row=2, max_row=max_row_profiles, min_col=1, max_col=9, values_only=True)
-    for i, row in enumerate(rows, start=1):
-        if row[1] == profile.ads_id:
+    # Проверяем, есть ли профиль в 'done'
+    rows_done = list(sheet_done.iter_rows(min_row=2, max_row=sheet_done.max_row, min_col=1, max_col=9, values_only=True))
+    for row in rows_done:
+        if row[1] == profile.ads_id:  # Профиль уже перенесен
             workbook.save(excel_path)
             workbook.close()
             return
 
+    # Добавляем профиль в 'done'
     row = [profile.id, profile.ads_id, profile.name, profile.password, profile.ref_code]
-
-    sheet.append(row)
+    sheet_done.append(row)
 
     workbook.save(excel_path)
     workbook.close()
