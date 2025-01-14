@@ -73,6 +73,12 @@ def move_profile_to_done(excel_path: str, profile: Profile):
         if rows[i-1][1] == profile.ads_id:  # row[1] - ads_id
             sheet_not_done.delete_rows(i + 1)  # +1, так как iter_rows начинается с 2-й строки
 
+    # Удаляем пустые строки
+    rows_done = list(sheet_done.iter_rows(min_row=2, max_row=sheet_done.max_row, min_col=1, max_col=9, values_only=True))
+    for i in range(len(rows), 0, -1):
+        if rows[i-1][1] is None:  # row[1] - ads_id
+            sheet_done.delete_rows(i + 1)
+
     # Проверяем, есть ли профиль в 'done'
     rows_done = list(sheet_done.iter_rows(min_row=2, max_row=sheet_done.max_row, min_col=1, max_col=9, values_only=True))
     for row in rows_done:

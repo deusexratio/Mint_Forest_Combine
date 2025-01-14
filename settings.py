@@ -1,9 +1,9 @@
 RETRY_ATTEMPTS = 10
-max_row_profiles = 100
+max_row_profiles = 101
 concurrent_tasks = 3
 relay_bridge_inbound_chain = 'Optimism'
 bridge_min = 0.0004
-bridge_max = 0.0009
+bridge_max = 0.0008
 
 
 USER_FILES_FOLDER = './user_files'

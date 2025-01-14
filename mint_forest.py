@@ -3,7 +3,7 @@ import time
 import traceback
 from os import close
 
-from playwright.async_api import async_playwright, expect, BrowserContext, Page
+from playwright.async_api import async_playwright, expect, BrowserContext, Page, Locator
 from loguru import logger
 from playwright._impl._errors import TimeoutError, Error, TargetClosedError
 import asyncio
@@ -263,7 +263,7 @@ class Mint:
 
                 # Перепроверяем логин, иногда почему то подвисает
                 connect_login_button = mint_page.get_by_role(role='button', name='Login')
-                if await connect_login_button.is_visible(timeout=1000):
+                if await connect_login_button.is_visible(timeout=500):
                     await self.login_wallet_to_mint(connect_login_button)
 
                 # Вынес проверку страницы кошелька из-за лабуды со сменой сети
@@ -338,6 +338,91 @@ class Mint:
 
 
     async def mint_socials(self, no_green_id: bool = False):
+        async def handle_task(task_: Locator):
+            if task_ and await task_.is_visible():
+                # Кликаем по "Go"
+                task_button = task_.get_by_text('Go')
+                if task_button and await task_button.is_visible():
+                    # Проверяем текст в дочернем элементе (например, span с описанием задания)
+                    task_text_ = await task_.locator('xpath=div[2]/span[1]').inner_text(timeout=1000)
+                    if "Join Mint Discord" == task_text_:
+                        logger.info(f"Пропускаем задание: {task_text_}")
+                        await asyncio.sleep(5)
+                        task_ = parent_tasks_locator.locator('xpath=*').nth(1)
+                        if task_ and await task_.is_visible():
+                            task_text_ = await task_.locator('xpath=div[2]/span[1]').inner_text(timeout=1000)
+                            if task_text_ == 'Share "MintID Staking" on Twitter':
+                                logger.info(f"Пропускаем задание: {task_text_}")
+                                task_ = parent_tasks_locator.locator('xpath=*').nth(2)
+
+                                try:
+                                    task_text_ = await task_.locator('xpath=div[2]/span[1]').inner_text(timeout=1000)
+                                except:
+                                    # logger.info(f'Таски закончились')
+                                    return 0
+
+                            task_button = task_.get_by_text('Go')
+
+                        else:
+                            # logger.info(f'Локаторов с тасками не осталось')
+                            return 0
+
+                else:
+                    # logger.info(f"Пропускаем задание: {task_}, нет кнопки Go")
+                    # await asyncio.sleep(5)
+                    task_ = parent_tasks_locator.locator('xpath=*').nth(1)
+                    if task_ and await task_.is_visible():
+                        task_text_ = await task_.locator('xpath=div[2]/span[1]').inner_text(timeout=1000)
+                        task_button = task_.get_by_text('Go')
+                    else:
+                        # logger.info(f'Локаторов с тасками не осталось')
+                        return 0
+
+                if task_button and await task_button.is_visible():
+                    logger.debug(f"Name: {self.profile.name} | Кликаю по task: {task_text_}")
+                    await task_button.click(timeout=1000)
+                    await asyncio.sleep(randfloat(1, 3, 0.001))
+
+                    if (task_text_ == 'Share "Mint Your Tree" on Twitter' or
+                            task_text_ == 'Share "Activate Your GreenID" on Twitter'):
+                        twitter_task_page = await self.switch_to_extension_page('x.com', timeout_=5000)
+                        await twitter_task_page.bring_to_front()
+                        # await twitter_task_page.wait_for_load_state('domcontentloaded')
+
+                        await asyncio.sleep(10)
+                        tweet_button = twitter_task_page.get_by_test_id("tweetButton")
+                        await tweet_button.click(timeout=3000)
+
+                        post = twitter_task_page.get_by_test_id('toast').get_by_text('View')
+                        await post.click(timeout=3000, force=True)
+
+                        # await twitter_task_page.wait_for_load_state('domcontentloaded')
+                        # if 'Share "Activate Your GreenID" on Twitter' == task_text_:
+                        #     post = twitter_task_page.get_by_text('Hey frens, activate the GreenID NFT from')
+                        # elif 'Share "Mint Your Tree" on Twitter' == task_text_:
+                        #     post = twitter_task_page.get_by_text('Mint is the L2 for NFT industry, powered by')
+
+                        # await post.click(timeout=3000)
+                        tweet_link = twitter_task_page.url
+                        await mint_page.bring_to_front()
+                        tweet_input = task_.get_by_placeholder("Input the tweet url")
+                        await tweet_input.fill(tweet_link)
+
+                    twitter_task_page = await self.close_new_page('x.com', timeout_=5000)
+
+                    # Кликаем по "Verify"
+                    verify_button = task_.get_by_text('Verify')
+                    if verify_button and await verify_button.is_visible():
+                        await verify_button.click(timeout=1000)
+                        await asyncio.sleep(randfloat(1, 3, 0.001))
+                        logger.success(f"Name: {self.profile.name} | Task выполнен: {task_text_}")
+                        return 1
+
+                else:
+                    task_text_ = await task_.locator('xpath=div[2]/span[1]').inner_text(timeout=1000)
+                    logger.error(f'{task_text_} после всех проверок не найдена кнопка Go')
+                    # return 0
+
         mint_page = await self.all_preparations()
 
         if no_green_id:
@@ -345,35 +430,19 @@ class Mint:
         else:
             parent_tasks_locator = mint_page.locator('//*[@id="forest-root"]/div[3]/div[4]/div[1]/div/div[2]/div[2]/div/div[2]/div')
 
-        # try:
-        #     expect(parent_tasks_locator).to_have_class("w-full flex-1 flex flex-col gap-8 max-h-[450px] lg:max-h-[unset] overflow-y-auto scroll-bar px-8")
-        # except:
-        #     parent_tasks_locator = mint_page.locator('//*[@id="forest-root"]/div[3]/div[3]/div[1]/div/div[2]/div[2]/div/div[2]/div')
-
         tasks_done = 0
         while True:
             try:
-                # Повторно получаем первый доступный элемент с кнопкой "Go"
-                task_button = parent_tasks_locator.locator('xpath=*').get_by_text('Go').first
+                # Получаем первый доступный task
+                task = parent_tasks_locator.locator('xpath=*').first
+                await task.scroll_into_view_if_needed(timeout=10000)
 
-                if task_button and await task_button.is_visible():
-                    logger.debug(f"Name: {self.profile.name} | Кликаю по первому доступному task")
-                    await task_button.click(timeout=10000)
-                    # Если быстро кликать, то сайт выдает ошибку Frequent operations
-                    await asyncio.sleep(randfloat(3, 7, 0.001))
-
-                    twitter_task_page = await self.close_new_page('x.com')
-
-                    # Повторяем для кнопки "Verify"
-                    verify_button = parent_tasks_locator.locator('xpath=*').get_by_text('Verify').last
-                    if verify_button and verify_button.is_visible():
-                        await verify_button.click(timeout=1000)
-                        await asyncio.sleep(randfloat(3, 7, 0.001))
-                        logger.success(f"Name: {self.profile.name} | Task выполнен")
-                        tasks_done += 1
+                task_result = await handle_task(task)
+                if task_result == 1:
+                    tasks_done += 1
                 else:
                     logger.info(f"Name: {self.profile.name} | Все задания выполнены.")
-                    return tasks_done  # Если кнопки "Go" больше нет — выходим из цикла
+                    return tasks_done
 
             except Exception as e:
                 logger.error(f"Name: {self.profile.name} | {e}")
@@ -419,11 +488,13 @@ class Mint:
                 # rabby_page = self.switch_to_extension_page(self.rabby_notification_url, timeout_=5000)
                 rabby_page = None
                 while not rabby_page and not done:
-                    await _300_button.click(timeout=3000)
+                    try:
+                        await _300_button.click(timeout=3000)
+                    except:
+                        await mint_page.get_by_text('close').click(timeout=3000)
                     try:
                         await expect(mint_page.get_by_text("You can't spin anymore today")).to_be_visible(timeout=5000)
                         done = True
-                        # Fail to create
                     except:
                         pass
                     # time.sleep(randfloat(3, 6, 0.001))
@@ -766,7 +837,19 @@ class Mint:
                 logger.critical(f"Name: {self.profile.name} | Что-то пошло не так в бридже, жду помощи руками {e}")
                 await asyncio.sleep(100)
 
-'''
-<span class="text-md text-[#00A637] font-normal mb-30">Congratulations on winning 100 ME</span>
-<span class="text-[32px] font-extrabold text-white lg:text-tree-text -mt-6">1/10</span>
-'''
+
+    async def test_twitter(self):
+        twitter_task_page = await self.switch_to_extension_page('x.com')
+        # post_input = twitter_task_page.get_by_text('What is happening?!')
+        post_input = twitter_task_page.get_by_test_id('tweetTextarea_0RichTextInputContainer')
+        await post_input.click()
+        await asyncio.sleep(randfloat(1, 3))
+        post_input = twitter_task_page.get_by_test_id('tweetTextarea_0')
+        await post_input.fill('zdravstvuite')
+        await asyncio.sleep(randfloat(1, 3))
+        await twitter_task_page.get_by_test_id('tweetButtonInline').click()
+        # post = twitter_task_page.get_by_role('link', name='View')
+        post = twitter_task_page.get_by_test_id('toast').get_by_text('View')
+        # post_link_html = twitter_task_page.get_by_test_id('toast').get_by_role('link')
+        # print(await post_link_html.evaluate("el => el.outerHTML"))
+        await post.click(timeout=3000, force=True)

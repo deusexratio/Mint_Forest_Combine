@@ -1,4 +1,4 @@
-import time
+import random
 import traceback
 
 from loguru import logger
@@ -18,7 +18,6 @@ async def task(profile, profiles_stats, new_, no_green_id, semaphore, lock):
             traceback.print_exc()
             await asyncio.sleep(.3)
             logger.error(f'Name: {profile.name} {ex}')
-            # time.sleep(1000)
 
 
 async def main():
@@ -42,6 +41,7 @@ async def main():
             no_green_id = False
 
     profiles = get_accounts_from_excel(PROFILES_PATH)
+    random.shuffle(profiles)
     tasks = [asyncio.create_task(task(profile, profiles_stats, new_acc, no_green_id, semaphore, lock)) for profile in profiles]
     logger.info(f"Стартую {len(tasks)} тасков")
     await asyncio.wait(tasks)
