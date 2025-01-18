@@ -1,13 +1,9 @@
 RETRY_ATTEMPTS = 10
 max_row_profiles = 101
-concurrent_tasks = 3
+concurrent_tasks = 1
 relay_bridge_inbound_chain = 'Optimism'
 bridge_min = 0.0004
 bridge_max = 0.0008
-
-# # RABBY_VERSION = 'OLD' # 0.92.80
-# RABBY_VERSION = 'NEW' # 0.93.10
-# # change to 'NEW" if you have recent version
 
 
 USER_FILES_FOLDER = './user_files'

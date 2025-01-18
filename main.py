@@ -18,6 +18,7 @@ async def task(profile, profiles_stats, new_, no_green_id, semaphore, lock):
             traceback.print_exc()
             await asyncio.sleep(.3)
             logger.error(f'Name: {profile.name} {ex}')
+            continue
 
 
 async def main():

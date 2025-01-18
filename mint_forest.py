@@ -31,8 +31,17 @@ class Mint:
                 await rabby_page.bring_to_front()
                 await rabby_page.goto(self.rabby_ext_url)
                 await asyncio.sleep(.5)
+
                 try:
-                    await expect(rabby_page.get_by_text('Gwei')).not_to_be_visible()
+                    if await rabby_page.get_by_text("What's new").is_visible(timeout=3000):
+                        await rabby_page.locator('/html/body/div[2]/div/div[2]/div/div[2]/button/span').click(
+                            timeout=3000)
+                except:
+                    logger.error(f'Name: {self.profile.name} | Can"t close whats new')
+
+
+                try:
+                    await expect(rabby_page.get_by_text('No Dapp found')).not_to_be_visible()
                     # if RABBY_VERSION == 'OLD':
                     #     await expect(rabby_page.locator('//*[@id="root"]/div[1]/div[2]/div[1]')).not_to_be_visible()
                     # else:
@@ -264,9 +273,10 @@ class Mint:
             await sign_button.click(timeout=10000)
             await rabby_page.get_by_text('Confirm').click(timeout=1000)
         except Exception as e:
-            if await rabby_page.get_by_text('Gas is not enough').is_visible(timeout=1000):
+            if await rabby_page.get_by_text('not enough').is_visible(timeout=1000):
                 await rabby_page.close()
                 logger.info(f'Name: {self.profile.name} | Нет эфира в минте на газ')
+                await self.relay()
                 return False
             else:
                 logger.error(f'Name: {self.profile.name} | Не удалось подтвердить транзакцию {e}')
@@ -286,22 +296,11 @@ class Mint:
                 if await connect_login_button.is_visible(timeout=500):
                     await self.login_wallet_to_mint(connect_login_button)
 
-                # # Вынес проверку страницы кошелька из-за лабуды со сменой сети
-                # rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
-                # if rabby_page:
-                #     try:
-                #         await rabby_page.get_by_role('button', name='Sign').click(timeout=10000)
-                #     except:
-                #         if await rabby_page.get_by_text('Gas is not enough').is_visible(timeout=1000):
-                #             await rabby_page.close()
-                #             logger.info(f'Name: {self.profile.name} | Нет эфира в минте на газ')
-                #             return 0
-                #
-                #     await rabby_page.get_by_text('Confirm').click(timeout=1000)
+                # Вынес проверку страницы кошелька из-за лабуды со сменой сети
                 rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
                 if rabby_page:
                     if not await self.sign_transaction(rabby_page):
-                        return 0
+                        continue
 
                 # Проверка выполнен ли уже пузырик
                 try:
@@ -483,8 +482,10 @@ class Mint:
         if no_green_id:
             lucky_button = mint_page.locator('//*[@id="forest-root"]/div[3]/div[1]/img[3]')
         else:
-            lucky_button = mint_page.locator( '//*[@id="forest-root"]/div[3]/div[2]/img[3]')
+            # lucky_button = mint_page.locator('//*[@id="forest-root"]/div[3]/div[2]/img[3]')
+            lucky_button = mint_page.get_by_alt_text('lucky', exact=True)
 
+        await lucky_button.scroll_into_view_if_needed()
         await lucky_button.click(timeout=3000)
 
         _300_button = mint_page.locator('//*[@id="spin-root"]/div[3]/div/div[1]/span')
@@ -499,21 +500,13 @@ class Mint:
         iterator_count = 0
         done = False
         while spin_count_int < 10:
-        # for i in range(1, 10):
             try:
                 logger.debug(f"Name: {self.profile.name} | Запускаю бурмалду. Текущий счетчик спинов: {spin_count_str}")
                 iterator_count += 1
 
                 # почему-то spin_count_str до первого прокрута всегда 0/10 возвращает,
                 # хотя там может быть и 1/10 и 10/10 и он будет тупить бесконечно
-                # if iterator_count >= 10:
-                #     logger.debug(
-                #         f"Name: {self.profile.name} | Не получилось ничего прокрутить за 10 попыток, видимо на сегодня все")
 
-                # _300_button.click(timeout=3000)
-                # time.sleep(randfloat(3,6, 0.001))
-
-                # rabby_page = self.switch_to_extension_page(self.rabby_notification_url, timeout_=5000)
                 rabby_page = None
                 while not rabby_page and not done:
                     try:

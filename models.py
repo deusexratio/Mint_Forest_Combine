@@ -67,9 +67,9 @@ class Profile(BaseModel):
                 if new and no_green_id:
                     await mint.register_account(self.ref_code)
                     bubble_amount = await mint.daily_bubble()
-                    if bubble_amount == 0:
-                        amount_to_bridge = await mint.relay()
-                        bubble_amount = await mint.daily_bubble()
+                    # if bubble_amount == 0:
+                    #     amount_to_bridge = await mint.relay()
+                    #     bubble_amount = await mint.daily_bubble()
                     reg = True
 
                 elif no_green_id:
