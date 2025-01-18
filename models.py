@@ -95,9 +95,6 @@ class Profile(BaseModel):
                 write_results_for_profile(RESULTS_PATH, self, result)
                 move_profile_to_done(PROFILES_PATH, self)
 
-                # todo: add check "Seed Phrase ..."
-                #  если вообще где угодно что-то застряло то попробовать клик по слову close
-
             requests.get(close_url)
             logger.success(f'Name: {self.name} all done')
 

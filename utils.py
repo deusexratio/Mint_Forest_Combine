@@ -16,7 +16,7 @@ from settings import max_row_profiles, PROFILES_PATH, RESULTS_PATH, USER_FILES_F
 def get_accounts_from_excel(excel_path: str) -> list:
     profiles = []
     workbook = load_workbook(excel_path)
-    sheet = workbook.get_sheet_by_name('not_done')
+    sheet = workbook['not_done']
     # sheet = workbook.active
     for row in sheet.iter_rows(min_row=2, max_row=max_row_profiles, min_col=1, max_col=7, values_only=True):
         if not row[1]:
@@ -32,6 +32,8 @@ def get_accounts_from_excel(excel_path: str) -> list:
         profiles.append(profile)
 
     logger.info(f"Получил из таблицы profiles листа not_done {len(profiles)} профилей")
+
+    workbook.close()
     return profiles
 
 

@@ -5,6 +5,10 @@ relay_bridge_inbound_chain = 'Optimism'
 bridge_min = 0.0004
 bridge_max = 0.0008
 
+# # RABBY_VERSION = 'OLD' # 0.92.80
+# RABBY_VERSION = 'NEW' # 0.93.10
+# # change to 'NEW" if you have recent version
+
 
 USER_FILES_FOLDER = './user_files'
 PROFILES_PATH = USER_FILES_FOLDER + '/profiles.xlsx'

@@ -32,8 +32,11 @@ class Mint:
                 await rabby_page.goto(self.rabby_ext_url)
                 await asyncio.sleep(.5)
                 try:
-                    # expect(rabby_page.get_by_text('Swap')).not_to_be_visible()
-                    await expect(rabby_page.locator('//*[@id="root"]/div[1]/div[2]/div[1]')).not_to_be_visible()
+                    await expect(rabby_page.get_by_text('Gwei')).not_to_be_visible()
+                    # if RABBY_VERSION == 'OLD':
+                    #     await expect(rabby_page.locator('//*[@id="root"]/div[1]/div[2]/div[1]')).not_to_be_visible()
+                    # else:
+                    #     await expect(rabby_page.locator('//*[@id="root"]/div/div[1]/div[1]/div[1]/span')).not_to_be_visible()
                 except:
                     logger.debug(f'Name: {self.profile.name} | Already unlocked Rabby')
                     await rabby_page.close()
@@ -50,15 +53,15 @@ class Mint:
 
                 # clean up rabby pages
                 await rabby_page.close()
-                # titles = [p.title() for p in self.context.pages]
-                # rabby_page_index= 0
-                # for title in titles:
-                #     if 'Rabby' in title:
-                #         page = self.context.pages[rabby_page_index]
-                #         page.close()
-                #     rabby_page_index += 1
+
+                titles = [await p.title() for p in self.context.pages]
+                for rabby_page_index, title in enumerate(titles):
+                    if 'Rabby' in title:
+                        page = self.context.pages[rabby_page_index]
+                        await page.close()
 
                 break
+
             except Exception as e:
                 logger.error(f'Name: {self.profile.name} | {e}')
                 continue
@@ -94,7 +97,7 @@ class Mint:
         rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
 
         await asyncio.sleep(3)
-        await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
+        await rabby_page.get_by_role('button', name='Sign').click(timeout=10000)
         await asyncio.sleep(.3)
         await rabby_page.get_by_text('Confirm').click(timeout=1000)
         await asyncio.sleep(1)
@@ -254,6 +257,23 @@ class Mint:
         return mint_page
 
 
+    async def sign_transaction(self, rabby_page):
+        try:
+            sign_button = rabby_page.get_by_role('button', name='Sign')
+            await expect(sign_button).to_be_enabled(timeout=20000)
+            await sign_button.click(timeout=10000)
+            await rabby_page.get_by_text('Confirm').click(timeout=1000)
+        except Exception as e:
+            if await rabby_page.get_by_text('Gas is not enough').is_visible(timeout=1000):
+                await rabby_page.close()
+                logger.info(f'Name: {self.profile.name} | Нет эфира в минте на газ')
+                return False
+            else:
+                logger.error(f'Name: {self.profile.name} | Не удалось подтвердить транзакцию {e}')
+
+        return True
+
+
     async def daily_bubble(self):
         mint_page = await self.all_preparations()
 
@@ -261,23 +281,27 @@ class Mint:
             try:
                 logger.debug(f'Name: {self.profile.name} | {i} attempt popping bubble')
 
-                # Перепроверяем логин, иногда почему то подвисает
+                # Перепроверяем логин, иногда почему-то подвисает
                 connect_login_button = mint_page.get_by_role(role='button', name='Login')
                 if await connect_login_button.is_visible(timeout=500):
                     await self.login_wallet_to_mint(connect_login_button)
 
-                # Вынес проверку страницы кошелька из-за лабуды со сменой сети
+                # # Вынес проверку страницы кошелька из-за лабуды со сменой сети
+                # rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
+                # if rabby_page:
+                #     try:
+                #         await rabby_page.get_by_role('button', name='Sign').click(timeout=10000)
+                #     except:
+                #         if await rabby_page.get_by_text('Gas is not enough').is_visible(timeout=1000):
+                #             await rabby_page.close()
+                #             logger.info(f'Name: {self.profile.name} | Нет эфира в минте на газ')
+                #             return 0
+                #
+                #     await rabby_page.get_by_text('Confirm').click(timeout=1000)
                 rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
                 if rabby_page:
-                    try:
-                        await rabby_page.get_by_text('Sign and Create').click(timeout=10000)
-                    except:
-                        if await rabby_page.get_by_text('Gas is not enough').is_visible(timeout=1000):
-                            await rabby_page.close()
-                            logger.info(f'Name: {self.profile.name} | Нет эфира в минте на газ')
-                            return 0
-
-                    await rabby_page.get_by_text('Confirm').click(timeout=1000)
+                    if not await self.sign_transaction(rabby_page):
+                        return 0
 
                 # Проверка выполнен ли уже пузырик
                 try:
@@ -288,7 +312,11 @@ class Mint:
                         ' z-[9999] select-none scale-100 translate-y-[-3px] bubble-wave text-[#AC9F8F]"]'
                     )
                     if pale_bubble and await pale_bubble.is_visible():
-                        bubble_amount = int((await pale_bubble.text_content())[:4])
+                        # today_activity_list = mint_page.locator('//*[@id="forest-root"]/div[3]/div[4]/div[2]/div/div[2]/div').locator('xpath=*')
+                        # for index in range(await today_activity_list.count()):
+                        #     activity = today_activity_list.locator('')
+
+                        bubble_amount = int((await pale_bubble.text_content())[:-8])
                         logger.success(f'Name: {self.profile.name} | Daily bubble completed. Points: {bubble_amount}')
                         return bubble_amount
                     else:
@@ -498,20 +526,15 @@ class Mint:
                     except:
                         pass
                     # time.sleep(randfloat(3, 6, 0.001))
-                    rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=5000)
+
+                    rabby_page = await self.switch_to_extension_page(self.rabby_notification_url, timeout_=10000)
+                    if rabby_page:
+                        if not await self.sign_transaction(rabby_page):
+                            continue
 
                 if done:
                     logger.success(f"Name: {self.profile.name} | На сегодня все спины прокручены")
                     break
-
-                try:
-                    sign_button = rabby_page.get_by_text('Sign and Create')
-                    await expect(sign_button).to_be_enabled(timeout=20000)
-                    await sign_button.click(timeout=15000)
-                    await rabby_page.get_by_text('Confirm').click(timeout=1000)
-                except Exception as e:
-                    logger.error(f"Name: {self.profile.name} | Не удалось подтвердить транзакцию в расширении {e} ")
-                    continue
 
                 await asyncio.sleep(randfloat(2,3, 0.001))
 
